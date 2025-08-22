@@ -1,12 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { Search, Filter, Heart, Clock, MapPin, AlertTriangle, Phone, Mail } from 'lucide-react';
 
-// The URL for your backend API, loaded from the environment variables.
-// This is the correct way to access environment variables in a Create React App environment.
-const API_URL = process.env.REACT_APP_API_URL;
+// API URL: falls back to localhost if not provided
+const API_URL = process.env.REACT_APP_API_URL || "http://localhost:8080";
 
 // Function to get the urgency color based on the urgency level
-const getUrgencyColor = (urgency) => {
+const getUrgencyColor = (urgency: string) => {
   switch (urgency) {
     case 'critical':
       return 'bg-red-100 text-red-800 border-red-200';
@@ -20,15 +19,15 @@ const getUrgencyColor = (urgency) => {
 };
 
 // Function to format the days left until euthanasia
-const formatTimeLeft = (days) => {
+const formatTimeLeft = (days?: number) => {
   if (!days) return null;
   if (days === 1) return "1 day left";
   return `${days} days left`;
 };
 
 const PetRescueApp = () => {
-  const [pets, setPets] = useState([]);
-  const [filteredPets, setFilteredPets] = useState([]);
+  const [pets, setPets] = useState<any[]>([]);
+  const [filteredPets, setFilteredPets] = useState<any[]>([]);
   const [filters, setFilters] = useState({
     state: '',
     species: '',
@@ -39,54 +38,67 @@ const PetRescueApp = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [loading, setLoading] = useState(true);
 
-  // useEffect to fetch data from the backend on component mount
+  // Fetch pets from backend
   useEffect(() => {
     const fetchPets = async () => {
       setLoading(true);
       try {
+        console.log("Fetching pets from:", `${API_URL}/pets`);
         const response = await fetch(`${API_URL}/pets`);
         if (!response.ok) {
-          throw new Error('Network response was not ok');
+          throw new Error(`Network response was not ok: ${response.status}`);
         }
         const data = await response.json();
         setPets(data);
         setFilteredPets(data);
       } catch (error) {
-        console.error("Failed to fetch pets:", error);
-        // Fallback to mock data or display an error message
+        console.error("❌ Failed to fetch pets:", error);
         setPets([]);
         setFilteredPets([]);
       } finally {
         setLoading(false);
       }
     };
-    
-    // Call the fetch function
-    fetchPets();
-  }, []); // Empty dependency array means this runs once when the component mounts
 
-  // useEffect to apply filters whenever the pets, searchTerm, or filters change
+    fetchPets();
+  }, []);
+
+  // Apply filters whenever pets/search/filters change
   useEffect(() => {
     let filtered = pets.filter(pet => {
-      const matchesSearch = pet.name.toLowerCase().includes(searchTerm.toLowerCase()) || pet.breed.toLowerCase().includes(searchTerm.toLowerCase()) || pet.location.toLowerCase().includes(searchTerm.toLowerCase());
+      const matchesSearch =
+        pet.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        pet.breed.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        pet.location.toLowerCase().includes(searchTerm.toLowerCase());
+
       const matchesState = !filters.state || pet.state === filters.state;
       const matchesSpecies = !filters.species || pet.species === filters.species;
       const matchesUrgency = !filters.urgencyLevel || pet.urgencyLevel === filters.urgencyLevel;
-      const matchesDaysInShelter = !filters.daysInShelter || (filters.daysInShelter === "1-30" && pet.daysInShelter <= 30) || (filters.daysInShelter === "30+" && pet.daysInShelter > 30);
-      const matchesDaysUntilEuthanasia = !filters.daysUntilEuthanasia || (filters.daysUntilEuthanasia === "1-3" && pet.daysUntilEuthanasia && pet.daysUntilEuthanasia <= 3) || (filters.daysUntilEuthanasia === "4-7" && pet.daysUntilEuthanasia && pet.daysUntilEuthanasia >= 4 && pet.daysUntilEuthanasia <= 7) || (filters.daysUntilEuthanasia === "7+" && pet.daysUntilEuthanasia && pet.daysUntilEuthanasia > 7) || (filters.daysUntilEuthanasia === "no-kill" && !pet.daysUntilEuthanasia);
+      const matchesDaysInShelter =
+        !filters.daysInShelter ||
+        (filters.daysInShelter === "1-30" && pet.daysInShelter <= 30) ||
+        (filters.daysInShelter === "30+" && pet.daysInShelter > 30);
+
+      const matchesDaysUntilEuthanasia =
+        !filters.daysUntilEuthanasia ||
+        (filters.daysUntilEuthanasia === "1-3" && pet.daysUntilEuthanasia && pet.daysUntilEuthanasia <= 3) ||
+        (filters.daysUntilEuthanasia === "4-7" && pet.daysUntilEuthanasia && pet.daysUntilEuthanasia >= 4 && pet.daysUntilEuthanasia <= 7) ||
+        (filters.daysUntilEuthanasia === "7+" && pet.daysUntilEuthanasia && pet.daysUntilEuthanasia > 7) ||
+        (filters.daysUntilEuthanasia === "no-kill" && !pet.daysUntilEuthanasia);
+
       return matchesSearch && matchesState && matchesSpecies && matchesUrgency && matchesDaysInShelter && matchesDaysUntilEuthanasia;
     });
 
     // Sort by urgency
     filtered.sort((a, b) => {
-      const urgencyOrder = { critical: 0, moderate: 1, low: 2 };
+      const urgencyOrder: Record<string, number> = { critical: 0, moderate: 1, low: 2 };
       return urgencyOrder[a.urgencyLevel] - urgencyOrder[b.urgencyLevel];
     });
 
     setFilteredPets(filtered);
   }, [pets, searchTerm, filters]);
 
-  const handleFilterChange = (key, value) => {
+  const handleFilterChange = (key: string, value: string) => {
     setFilters(prev => ({ ...prev, [key]: value }));
   };
 
@@ -122,6 +134,7 @@ const PetRescueApp = () => {
             <h2 className="text-lg font-semibold">Filter Options</h2>
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            {/* State Filter */}
             <div>
               <label htmlFor="state" className="block text-sm font-medium text-gray-700">State</label>
               <select
@@ -137,6 +150,7 @@ const PetRescueApp = () => {
                 <option value="PA">Pennsylvania</option>
               </select>
             </div>
+            {/* Species Filter */}
             <div>
               <label htmlFor="species" className="block text-sm font-medium text-gray-700">Species</label>
               <select
@@ -150,6 +164,7 @@ const PetRescueApp = () => {
                 <option value="Cat">Cat</option>
               </select>
             </div>
+            {/* Urgency Filter */}
             <div>
               <label htmlFor="urgencyLevel" className="block text-sm font-medium text-gray-700">Urgency</label>
               <select
@@ -164,6 +179,7 @@ const PetRescueApp = () => {
                 <option value="low">Low</option>
               </select>
             </div>
+            {/* Days Until Euthanasia Filter */}
             <div>
               <label htmlFor="daysUntilEuthanasia" className="block text-sm font-medium text-gray-700">Days Until Euthanasia</label>
               <select
@@ -182,6 +198,7 @@ const PetRescueApp = () => {
           </div>
         </div>
 
+        {/* Pets Grid */}
         {loading ? (
           <div className="flex justify-center items-center py-12">
             <svg className="animate-spin h-10 w-10 text-blue-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
@@ -200,7 +217,7 @@ const PetRescueApp = () => {
                       src={pet.image}
                       alt={`A photo of ${pet.name}`}
                       className="w-full h-48 object-cover"
-                      onError={(e) => {
+                      onError={(e: any) => {
                         e.target.onerror = null;
                         e.target.src = "https://placehold.co/400x300/e2e8f0/718096?text=Image+Not+Found";
                       }}
@@ -231,14 +248,14 @@ const PetRescueApp = () => {
                     <div className="mt-auto pt-4 border-t border-gray-100">
                       <div className="flex gap-2">
                         <a
-                          href={`tel:${pet.contact.phone}`}
+                          href={`tel:${pet.contact?.phone}`}
                           className="flex-1 bg-blue-600 text-white px-3 py-2 rounded-md text-sm font-medium hover:bg-blue-700 transition-colors flex items-center justify-center gap-1"
                         >
                           <Phone className="w-4 h-4" />
                           Call
                         </a>
                         <a
-                          href={`mailto:${pet.contact.email}`}
+                          href={`mailto:${pet.contact?.email}`}
                           className="flex-1 bg-green-600 text-white px-3 py-2 rounded-md text-sm font-medium hover:bg-green-700 transition-colors flex items-center justify-center gap-1"
                         >
                           <Mail className="w-4 h-4" />
@@ -266,4 +283,3 @@ const PetRescueApp = () => {
 };
 
 export default PetRescueApp;
-
